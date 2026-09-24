@@ -1,0 +1,29 @@
+{
+  "name": "jarvis-personal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Assistente de IA para personal trainers: gera rascunhos de treino no estilo do personal e conversa pelo Telegram.",
+  "scripts": {
+    "dev": "tsx watch src/bot/index.ts",
+    "start": "tsx src/bot/index.ts",
+    "gerar:exemplo": "tsx scripts/gerar-exemplo.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "dotenv": "^18.0.3",
+    "grammy": "^1.46.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  }
+}
