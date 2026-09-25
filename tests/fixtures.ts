@@ -1,3 +1,4 @@
+import { CONSENTIMENTO_ID, type Respostas } from "../src/dominio/anamnese.js";
 import type { Plano } from "../src/dominio/plano.js";
 
 export const planoBase: Plano = {
@@ -50,4 +51,32 @@ export const planoBase: Plano = {
     { tipo: "restricao", mensagem: "Joelho direito: amplitude limitada no agachamento" },
   ],
   justificativa: "Divisão inferiores/superiores com circuito metabólico.",
+};
+
+/** Formulário de anamnese preenchido, sem nenhuma condição de saúde. */
+export const respostasValidas: Respostas = {
+  idade: "34",
+  sexo: "Feminino",
+  peso: "62,5",
+  altura: "165",
+  objetivo: "Ganho de massa muscular",
+  objetivo_detalhe: "Fortalecer glúteos e posterior",
+  experiencia: "De 1 a 3 anos",
+  frequencia: "3 a 4",
+  tempo: "1 hora",
+  local: "Academia completa",
+  parq1: "nao",
+  parq2: "nao",
+  parq3: "nao",
+  parq4: "nao",
+  parq5: "nao",
+  parq6: "nao",
+  parq7: "nao",
+  sono: "7",
+  estresse: "Moderado",
+  trabalho: "Sentado(a)",
+  gosta: "Agachamento e remada",
+  nao_gosta: "Corrida",
+  cardio: "Faço se precisar",
+  [CONSENTIMENTO_ID]: "sim",
 };

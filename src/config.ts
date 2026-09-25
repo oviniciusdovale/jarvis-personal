@@ -18,6 +18,10 @@ export const config = {
   },
   modelo: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   dataDir: process.env.DATA_DIR ?? "./data",
+  /** Porta do formulário de anamnese. */
+  porta: Number(process.env.PORT ?? 3000),
+  /** Endereço que o aluno abre. Local: http://localhost:3000. Na VPS: o domínio com https. */
+  urlPublica: (process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/$/, ""),
   idsAutorizados: new Set(
     (process.env.ALLOWED_TELEGRAM_IDS ?? "")
       .split(",")

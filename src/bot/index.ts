@@ -1,6 +1,9 @@
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { config } from "../config.js";
-import { Repositorio, versaoAtual, type RegistroPlano } from "../armazenamento/repositorio.js";
+import { Repositorio, versaoAtual, type Convite, type RegistroPlano } from "../armazenamento/repositorio.js";
+import { anamneseParaTexto } from "../dominio/anamnese.js";
+import type { Anexo } from "../ia/entrada.js";
+import { criarServidor } from "../web/servidor.js";
 import { gerarRascunhoRevisado, revisarRascunho } from "../ia/gerador.js";
 import { extrairMetodologia, refinarMetodologia } from "../ia/metodologia.js";
 import { formatarPergunta, formatarResumoMetodologia } from "../formatacao/metodologia.js";
@@ -22,7 +25,8 @@ const bot = new Bot(config.telegramToken);
 const AJUDA = `Oi! Eu monto o rascunho do treino no seu estilo e você ajusta conversando comigo.
 
 1. /metodologia: me mande 2 ou 3 planos que você já usou (foto, PDF ou texto) e depois /pronto. Faço isso uma vez só.
-2. /novo Nome do aluno: me mande a anamnese (texto, foto ou PDF) e depois /gerar.
+2. /link Nome do aluno: te dou um link de anamnese para mandar ao aluno. Quando ele responder, eu te aviso aqui.
+   Ou /novo Nome do aluno: você mesmo me manda a anamnese (texto, foto ou PDF) e depois /gerar.
 3. Com o rascunho na tela, escreva o que quer mudar. Ex.: "troca o stiff por mesa flexora 4x12".
 4. Quando estiver bom, toque em ✅ Aprovar e eu te devolvo o treino pronto para mandar ao aluno.
 
@@ -198,22 +202,22 @@ bot.command("novo", async (ctx) => {
   );
 });
 
-bot.command("gerar", async (ctx) => {
-  const sessao = obterSessao(chatId(ctx));
-  if (sessao.modo !== "anamnese") return ctx.reply("Comece com /novo Nome do aluno.");
-  if (sessao.anexos.length === 0) return ctx.reply("Ainda não recebi a anamnese.");
-
-  await ctx.reply(`Montando o rascunho de ${sessao.aluno}. Leva de 30 segundos a 1 minuto e meio...`);
+/**
+ * Gera o rascunho e abre a revisão. Usado pelo /gerar e pelo botão do link de anamnese.
+ * A anamnese só existe aqui dentro: depois disso fica salvo só o plano.
+ */
+function gerarEMostrar(ctx: Context, aluno: string, anexos: Anexo[], convite?: string) {
   emSegundoPlano(ctx, async () => {
     const metodologia = await repo.obterMetodologia(personalId(ctx));
-    const resultado = await gerarRascunhoRevisado({ anamnese: sessao.anexos, metodologia }, async (etapa) => {
+    const resultado = await gerarRascunhoRevisado({ anamnese: anexos, metodologia }, async (etapa) => {
       const aviso =
         etapa === "revisando"
           ? "Rascunho montado. Conferindo se está coerente com a anamnese..."
           : "Achei pontos para corrigir. Ajustando o rascunho...";
       await ctx.api.sendMessage(chatId(ctx), aviso);
     });
-    const registro = await repo.criarPlano(personalId(ctx), sessao.aluno, resultado.plano);
+    const registro = await repo.criarPlano(personalId(ctx), aluno, resultado.plano);
+    if (convite) await repo.encerrarConvite(convite, "usado");
     await repo.registrarEvento({
       tipo: "rascunho_gerado",
       personalId: personalId(ctx),
@@ -221,6 +225,7 @@ bot.command("gerar", async (ctx) => {
       tokensEntrada: resultado.uso.entrada,
       tokensSaida: resultado.uso.saida,
       detalhe: JSON.stringify({
+        origem: convite ? "link" : "chat",
         tentativas: resultado.tentativas,
         mantevePrimeira: resultado.mantevePrimeira,
         corrigidos: resultado.corrigidos.map((p) => p.descricao),
@@ -228,17 +233,98 @@ bot.command("gerar", async (ctx) => {
         sugestoes: resultado.sugestoes.map((p) => p.descricao),
       }),
     });
-    // A anamnese sai da memória aqui: só o plano fica salvo.
     definirSessao(chatId(ctx), { modo: "revisando", planoId: registro.id });
     const revisao = formatarRevisaoAutomatica(resultado);
     if (revisao) await enviar(ctx, revisao);
     await mostrarRascunho(ctx, registro);
   });
+}
+
+bot.command("gerar", async (ctx) => {
+  const sessao = obterSessao(chatId(ctx));
+  if (sessao.modo !== "anamnese") return ctx.reply("Comece com /novo Nome do aluno.");
+  if (sessao.anexos.length === 0) return ctx.reply("Ainda não recebi a anamnese.");
+
+  await ctx.reply(`Montando o rascunho de ${sessao.aluno}. Leva de 30 segundos a 1 minuto e meio...`);
+  gerarEMostrar(ctx, sessao.aluno, sessao.anexos, sessao.convite);
+});
+
+// ---------- Anamnese por link ----------
+
+bot.command("link", async (ctx) => {
+  const aluno = ctx.match.trim();
+  if (!aluno) return ctx.reply('Diga um nome ou apelido para o aluno. Ex.: "/link Ana"');
+  const convite = await repo.criarConvite({ personalId: personalId(ctx), chatId: chatId(ctx), aluno });
+  await repo.registrarEvento({ tipo: "convite_criado", personalId: personalId(ctx) });
+  const url = `${config.urlPublica}/a/${convite.token}`;
+  await ctx.reply(
+    `Link da anamnese de ${aluno} (vale 7 dias, pode ser respondido uma vez):\n${url}\n\nQuando ${aluno} responder, eu te mando as respostas aqui para você gerar o rascunho.`,
+    { link_preview_options: { is_disabled: true } },
+  );
+  await ctx.reply(
+    `Mensagem pronta para encaminhar:\n\nOi, ${aluno}! Para eu montar seu treino, responda esta anamnese (uns 5 minutos): ${url}`,
+    { link_preview_options: { is_disabled: true } },
+  );
+});
+
+/** Chamado pelo servidor web quando o aluno envia o formulário. */
+async function avisarAnamneseRecebida(convite: Convite, nova = true) {
+  if (!convite.respostas) return;
+  if (nova) await repo.registrarEvento({ tipo: "anamnese_recebida", personalId: convite.personalId });
+  const texto =
+    `📋 ${convite.aluno} respondeu a anamnese:\n\n${anamneseParaTexto(convite.respostas)}` +
+    "\n\nAs respostas ficam guardadas até você gerar o rascunho (no máximo 7 dias) e depois são apagadas.";
+  const teclado = new InlineKeyboard()
+    .text("⚡ Gerar rascunho", `gerarlink:${convite.token}`)
+    .row()
+    .text("📎 Complementar antes", `complementar:${convite.token}`)
+    .row()
+    .text("🗑 Descartar respostas", `apagarlink:${convite.token}`);
+  const partes = dividirMensagem(texto);
+  for (const [i, parte] of partes.entries()) {
+    await bot.api.sendMessage(convite.chatId, parte, i === partes.length - 1 ? { reply_markup: teclado } : {});
+  }
+}
+
+bot.callbackQuery(/^(gerarlink|complementar|apagarlink):([A-Za-z0-9_-]{22})$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const [, acao, token] = ctx.match as RegExpMatchArray;
+  const convite = await repo.obterConvite(token!);
+  if (!convite || convite.personalId !== personalId(ctx) || convite.status !== "respondido" || !convite.respostas) {
+    await ctx.reply("Essas respostas não estão mais disponíveis (o rascunho já foi gerado, foram descartadas ou venceram).");
+    return;
+  }
+  await ctx.editMessageReplyMarkup();
+  const anamnese: Anexo = { tipo: "texto", conteudo: anamneseParaTexto(convite.respostas) };
+
+  switch (acao) {
+    case "gerarlink":
+      await ctx.reply(`Montando o rascunho de ${convite.aluno}. Leva de 30 segundos a 1 minuto e meio...`);
+      gerarEMostrar(ctx, convite.aluno, [anamnese], convite.token);
+      break;
+    case "complementar":
+      definirSessao(chatId(ctx), { modo: "anamnese", aluno: convite.aluno, anexos: [anamnese], convite: convite.token });
+      await ctx.reply(
+        `Manda o que quiser acrescentar para ${convite.aluno} (texto, foto ou PDF: avaliação física, exame, observação sua). Quando terminar, /gerar.`,
+      );
+      break;
+    case "apagarlink":
+      await repo.encerrarConvite(convite.token, "descartado");
+      await repo.registrarEvento({ tipo: "anamnese_descartada", personalId: personalId(ctx) });
+      await ctx.reply(`Respostas de ${convite.aluno} apagadas.`);
+      break;
+  }
 });
 
 bot.command("cancelar", async (ctx) => {
+  const sessao = obterSessao(chatId(ctx));
   definirSessao(chatId(ctx), { modo: "livre" });
   await ctx.reply("Ok, cancelei o que estava em andamento.");
+  // Se estava complementando uma anamnese do link, as respostas continuam guardadas: devolve os botões.
+  if (sessao.modo === "anamnese" && sessao.convite) {
+    const convite = await repo.obterConvite(sessao.convite);
+    if (convite?.status === "respondido") await avisarAnamneseRecebida(convite, false);
+  }
 });
 
 // ---------- Botões ----------
@@ -373,6 +459,7 @@ bot.on("message", async (ctx) => {
 bot.catch((erro) => console.error("Erro no bot:", erro.error));
 
 await bot.api.setMyCommands([
+  { command: "link", description: "Link de anamnese para o aluno: /link Nome" },
   { command: "novo", description: "Novo rascunho: /novo Nome do aluno" },
   { command: "gerar", description: "Gerar o rascunho com a anamnese enviada" },
   { command: "metodologia", description: "Ensinar seu estilo com planos antigos" },
@@ -380,6 +467,26 @@ await bot.api.setMyCommands([
   { command: "cancelar", description: "Cancelar o que está em andamento" },
   { command: "ajuda", description: "Como usar" },
 ]);
+
+// ---------- Formulário de anamnese ----------
+
+const servidor = criarServidor({ repo, aoResponder: avisarAnamneseRecebida });
+servidor.on("error", (erro: NodeJS.ErrnoException) => {
+  // Se o formulário não subir, o bot continua funcionando; só o /link fica sem página.
+  if (erro.code === "EADDRINUSE") {
+    console.error(`⚠️  A porta ${config.porta} já está em uso. Feche o outro processo ou mude PORT no .env.`);
+  } else {
+    console.error("⚠️  Formulário de anamnese não subiu:", erro);
+  }
+});
+servidor.listen(config.porta, () => console.log(`Formulário de anamnese em ${config.urlPublica}`));
+
+async function limpar() {
+  const limpos = await repo.limparConvitesVencidos();
+  if (limpos > 0) console.log(`${limpos} anamnese(s) vencida(s) apagada(s).`);
+}
+await limpar();
+setInterval(() => void limpar().catch(console.error), 6 * 60 * 60 * 1000).unref();
 
 console.log("Bot rodando. Ctrl+C para parar.");
 await bot.start();

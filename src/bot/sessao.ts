@@ -11,7 +11,8 @@ export type Sessao =
   | { modo: "metodologia"; anexos: Anexo[] }
   /** Perguntas sobre o que ficou ambíguo nos planos. A pergunta atual é a de índice respostas.length. */
   | { modo: "entrevista"; metodologia: Metodologia; respostas: RespostaEntrevista[] }
-  | { modo: "anamnese"; aluno: string; anexos: Anexo[] }
+  /** convite: token do link, quando a anamnese veio do formulário (as respostas são apagadas ao gerar). */
+  | { modo: "anamnese"; aluno: string; anexos: Anexo[]; convite?: string }
   | { modo: "revisando"; planoId: string; pendente?: { plano: Plano; mudancas: string[] } };
 
 const sessoes = new Map<number, Sessao>();
