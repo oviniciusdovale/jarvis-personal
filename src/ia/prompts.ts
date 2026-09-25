@@ -22,6 +22,15 @@ Regras:
   outros fatores, registre um alerta para o personal alinhar a expectativa com o aluno.
 - Não coloque nome de pessoa no título do plano.
 - Não escreva carga "0 kg": deixe a carga em branco ou use uma indicação útil ("leve", "RIR 2").
+- Nunca copie números de carga (kg ou valores de máquina) dos planos de exemplo: eram do aluno daquele
+  plano. Use indicações relativas ("leve", "moderada", "progressiva a cada série", "RIR 2").
+- O equipamento e o local do aluno mandam mais que o estilo do personal: use só o que o aluno tem.
+  Não ofereça alternativas com equipamento que ele não tem ("bike ou corrida" para quem não tem bike)
+  e dê a cada exercício o nome do que ele realmente faz (abdução com faixa elástica não é "cadeira abdutora").
+- Quando usar uma técnica do vocabulário do personal, siga exatamente o significado confirmado por ele.
+  Não transforme a técnica em opcional ("se sentir necessidade") nem dê outro significado a ela.
+- O vocabulário do personal vale para entender o estilo dele. Para o aluno, escreva por extenso o que
+  o termo significa (ex.: em vez de só "PAUSANDO 10\"", explique como executar).
 - Se a frequência for variável (ex.: "2 a 3 vezes"), preencha frequencia com mínima e máxima, monte
   fichas para a máxima e diga nas orientações ao aluno quais fichas priorizar nas semanas com menos treinos.
 - Nível: se a anamnese indica algo entre dois níveis, use o nível intermediário correspondente
@@ -37,7 +46,15 @@ Metodologia deste personal (siga o estilo dele, não um padrão genérico):
 - Divisões preferidas: ${metodologia.divisoesPreferidas.join("; ")}
 - Exercícios que ele usa (base preferida, não lista fechada): ${metodologia.exerciciosFrequentes.join(", ")}
 - Padrões de prescrição: ${metodologia.padroesPrescricao}
-- Estilo das orientações: ${metodologia.estiloOrientacoes}
+- Estilo das orientações: ${metodologia.estiloOrientacoes}${
+        (metodologia.glossario ?? []).length > 0
+          ? `\n- Vocabulário do personal (significado confirmado por ele):\n${(metodologia.glossario ?? []).map((t) => `  - "${t.termo}": ${t.significado}`).join("\n")}`
+          : ""
+      }${
+        (metodologia.regras ?? []).length > 0
+          ? `\n- Regras confirmadas pelo personal:\n${(metodologia.regras ?? []).map((r) => `  - ${r}`).join("\n")}`
+          : ""
+      }
 `.trim()
     : "Este personal ainda não enviou a metodologia. Use boas práticas gerais e diga isso na justificativa.";
 
@@ -87,9 +104,31 @@ Você vai analisar planos de treino que um personal trainer já usou com alunos.
 Extraia o ESTILO dele, não o conteúdo de um aluno específico: como divide os treinos,
 quais exercícios prefere (com os nomes exatamente como ele escreve), faixas de séries,
 repetições e descanso, métodos que usa, e como escreve orientações.
+
+Não chute. Tudo que admite mais de uma leitura vira uma DÚVIDA para perguntar ao personal, por exemplo:
+- abreviações e métodos com mais de um significado (ex.: "PAUSANDO 10\"" pode ser descanso ou isometria);
+- instruções que aparecem em um só exercício e podem ou não valer em geral (ex.: "se tiver máquina, fazer na máquina");
+- números que parecem erro de digitação (ex.: 1x10 onde todo o resto é 3x10);
+- valores de carga isolados (ex.: "40-47-57") cujo sentido não está claro;
+- como ele progride de uma fase para a próxima, se os planos mostram só uma fase.
+Regras das dúvidas: no máximo 5, as que mais mudam o treino primeiro; pergunta curta, uma coisa só;
+cite o trecho; ofereça até 3 opções prováveis quando fizer sentido.
+
+Glossário e regras: só o que está claro sem ambiguidade. O que é dúvida NÃO entra no glossário.
 Ignore nomes e dados pessoais de alunos.
 Ignore valores que parecem padrão do aplicativo de onde o plano foi exportado (ex.: "Carga: 0kg" em todos
 os exercícios): isso não é estilo do personal.
+Escreva em português do Brasil.
+`.trim();
+
+export const SISTEMA_REFINAR_METODOLOGIA = `
+Você recebe a metodologia de um personal trainer e as respostas dele às dúvidas que ficaram.
+Atualize a metodologia:
+- cada resposta vira um item do glossário (significado de um termo) ou uma regra confirmada;
+- ajuste resumo e padrões de prescrição se a resposta mudar o entendimento;
+- respostas como "não sei" ou "tanto faz" não viram regra;
+- deixe "duvidas" vazio, a menos que uma resposta tenha aberto uma dúvida nova e importante.
+Use as palavras do personal. Não invente nada além do que ele respondeu.
 Escreva em português do Brasil.
 `.trim();
 

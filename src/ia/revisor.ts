@@ -5,6 +5,7 @@ import { chamarComFerramenta, type Uso } from "./cliente.js";
 import { paraBlocos, type Anexo } from "./entrada.js";
 import { planoComoTexto } from "./prompts.js";
 import { skillsParaRevisor, type Skill } from "../conhecimento/skills.js";
+import type { Metodologia } from "../dominio/metodologia.js";
 
 const ResultadoRevisorSchema = z.object({
   verificacoes: z.array(
@@ -39,6 +40,10 @@ de um aluno. Antes de ir para o personal (que tem CREF e assina o plano), confir
    pouco realista ou dependente de outros fatores? Se sim, falta um alerta para o personal alinhar
    isso com o aluno, citando a condição.
 5. Pedidos do personal (se houver) foram atendidos.
+7. Equipamento: cada exercício (e cada alternativa sugerida) usa só o equipamento e o local que o aluno
+   informou, e o nome do exercício corresponde ao que ele vai de fato fazer.
+8. Vocabulário do personal (se informado abaixo): as técnicas usadas no plano seguem o significado
+   confirmado pelo personal. Técnica com outro significado ou tornada opcional é erro a corrigir.
 6. Público certo: "orientacoesAluno" e as observações dos exercícios vão direto para o aluno.
    Recado ao personal ou raciocínio clínico ali (ex.: "converse com a aluna", "sem restrição relatada",
    "por causa do histórico de...") é erro a corrigir.
@@ -60,7 +65,13 @@ export async function revisarCoerencia(entrada: {
   plano: Plano;
   instrucoesExtras?: string;
   skills?: Skill[];
+  metodologia?: Metodologia;
 }): Promise<{ problemas: Problema[]; uso: Uso }> {
+  const glossario = entrada.metodologia?.glossario ?? [];
+  const blocoVocabulario =
+    glossario.length > 0
+      ? `Vocabulário confirmado pelo personal:\n${glossario.map((t) => `- "${t.termo}": ${t.significado}`).join("\n")}`
+      : "";
   const conteudo = [
     { type: "text" as const, text: "Anamnese do aluno:" },
     ...paraBlocos(entrada.anamnese),
@@ -71,7 +82,7 @@ export async function revisarCoerencia(entrada: {
   }
 
   const { resultado, uso } = await chamarComFerramenta({
-    sistema: [SISTEMA_REVISOR, skillsParaRevisor(entrada.skills ?? [])].filter(Boolean).join("\n\n"),
+    sistema: [SISTEMA_REVISOR, skillsParaRevisor(entrada.skills ?? []), blocoVocabulario].filter(Boolean).join("\n\n"),
     conteudo,
     ferramenta: {
       nome: "registrar_revisao",

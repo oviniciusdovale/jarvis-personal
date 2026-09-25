@@ -69,3 +69,22 @@ Algo.
     expect(skillsParaRevisor(skills)).toContain("[Lipedema]");
   });
 });
+
+describe("seleção de skills nos casos de teste", () => {
+  const escolher = async (arquivo: string) => {
+    const skills = await carregarSkills();
+    const texto = await readFile(arquivo, "utf8");
+    return selecionarSkills(skills, [{ tipo: "texto", conteudo: texto }])
+      .map((s) => s.nome)
+      .sort();
+  };
+
+  it("cada caso ativa só as skills certas", async () => {
+    expect(await escolher("tests/casos/idoso-hipertensao.md")).toEqual(["Hipertensão arterial"]);
+    expect(await escolher("tests/casos/lombalgia.md")).toEqual(["Dor lombar"]);
+    expect(await escolher("tests/casos/treino-em-casa.md")).toEqual([]);
+    expect(await escolher("tests/casos/avancado.md")).toEqual([]);
+    expect(await escolher("tests/casos/aluna-j-anamnese.md")).toEqual(["Diástase abdominal", "Lipedema"]);
+    expect(await escolher("exemplos/anamnese-adaptacao.md")).toEqual([]);
+  });
+});

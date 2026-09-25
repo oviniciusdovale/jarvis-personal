@@ -32,6 +32,7 @@ export type RegistroPlano = {
 export type Evento = {
   tipo:
     | "metodologia_extraida"
+    | "metodologia_refinada"
     | "rascunho_gerado"
     | "revisao_pedida"
     | "revisao_aplicada"

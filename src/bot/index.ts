@@ -2,7 +2,9 @@ import { Bot, InlineKeyboard, type Context } from "grammy";
 import { config } from "../config.js";
 import { Repositorio, versaoAtual, type RegistroPlano } from "../armazenamento/repositorio.js";
 import { gerarRascunhoRevisado, revisarRascunho } from "../ia/gerador.js";
-import { extrairMetodologia } from "../ia/metodologia.js";
+import { extrairMetodologia, refinarMetodologia } from "../ia/metodologia.js";
+import { formatarPergunta, formatarResumoMetodologia } from "../formatacao/metodologia.js";
+import type { Metodologia, RespostaEntrevista } from "../dominio/metodologia.js";
 import {
   dividirMensagem,
   formatarCabecalho,
@@ -109,21 +111,80 @@ bot.command("pronto", async (ctx) => {
       tokensEntrada: uso.entrada,
       tokensSaida: uso.saida,
     });
-    definirSessao(chatId(ctx), { modo: "livre" });
+    const duvidas = metodologia.duvidas ?? [];
+    if (duvidas.length === 0) {
+      definirSessao(chatId(ctx), { modo: "livre" });
+      await enviar(ctx, formatarResumoMetodologia(metodologia));
+      return;
+    }
+    definirSessao(chatId(ctx), { modo: "entrevista", metodologia, respostas: [] });
     await enviar(
       ctx,
-      [
-        "Entendi assim o seu jeito de montar treino:",
-        "",
-        metodologia.resumo,
-        "",
-        `Divisões: ${metodologia.divisoesPreferidas.join("; ")}`,
-        `Padrões: ${metodologia.padroesPrescricao}`,
-        "",
-        "Se algo estiver errado, rode /metodologia de novo com outros planos. Agora já dá para usar /novo.",
-      ].join("\n"),
+      `Li seus planos. Antes de salvar, tenho ${duvidas.length} pergunta(s) rápida(s) sobre pontos que podem ser lidos de mais de um jeito. Prefiro perguntar a chutar.\n\nToque numa opção ou escreva sua resposta.`,
     );
+    await perguntarProxima(ctx, metodologia, []);
   });
+});
+
+// ---------- Entrevista da metodologia ----------
+
+async function perguntarProxima(ctx: Context, metodologia: Metodologia, respostas: RespostaEntrevista[]) {
+  const duvidas = metodologia.duvidas ?? [];
+  const i = respostas.length;
+  const duvida = duvidas[i];
+  if (!duvida) return;
+  const teclado = new InlineKeyboard();
+  duvida.opcoes.forEach((opcao, j) => teclado.text(opcao, `resp:${i}:${j}`).row());
+  teclado.text("Pular / não sei", `resp:${i}:pular`);
+  await ctx.api.sendMessage(chatId(ctx), formatarPergunta(duvida, i, duvidas.length), { reply_markup: teclado });
+}
+
+async function registrarResposta(ctx: Context, resposta: string) {
+  const id = chatId(ctx);
+  const sessao = obterSessao(id);
+  if (sessao.modo !== "entrevista") return;
+  const duvidas = sessao.metodologia.duvidas ?? [];
+  const duvida = duvidas[sessao.respostas.length];
+  if (!duvida) return;
+
+  const respostas = [...sessao.respostas, { duvida, resposta }];
+  definirSessao(id, { modo: "entrevista", metodologia: sessao.metodologia, respostas });
+
+  if (respostas.length < duvidas.length) {
+    await perguntarProxima(ctx, sessao.metodologia, respostas);
+    return;
+  }
+
+  await ctx.api.sendMessage(id, "Obrigado! Atualizando sua metodologia com as respostas...");
+  emSegundoPlano(ctx, async () => {
+    const { metodologia, uso } = await refinarMetodologia(sessao.metodologia, respostas);
+    await repo.salvarMetodologia(personalId(ctx), metodologia);
+    await repo.registrarEvento({
+      tipo: "metodologia_refinada",
+      personalId: personalId(ctx),
+      tokensEntrada: uso.entrada,
+      tokensSaida: uso.saida,
+      detalhe: JSON.stringify(respostas.map((r) => ({ pergunta: r.duvida.pergunta, resposta: r.resposta }))),
+    });
+    definirSessao(id, { modo: "livre" });
+    await enviar(ctx, formatarResumoMetodologia(metodologia));
+  });
+}
+
+bot.callbackQuery(/^resp:(\d+):(\w+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const [, indice, escolha] = ctx.match as RegExpMatchArray;
+  const sessao = obterSessao(chatId(ctx));
+  if (sessao.modo !== "entrevista" || Number(indice) !== sessao.respostas.length) {
+    await ctx.reply("Essa pergunta já foi respondida.");
+    return;
+  }
+  const duvida = (sessao.metodologia.duvidas ?? [])[Number(indice)];
+  const resposta = escolha === "pular" ? "Não sei / tanto faz" : duvida?.opcoes[Number(escolha)];
+  if (!resposta) return;
+  await ctx.editMessageReplyMarkup();
+  await ctx.reply(`✔️ ${resposta}`);
+  await registrarResposta(ctx, resposta);
 });
 
 bot.command("novo", async (ctx) => {
@@ -253,6 +314,12 @@ bot.on("message", async (ctx) => {
 
   if (ctx.message.voice || ctx.message.audio) {
     return ctx.reply("Áudio ainda não está ligado nesta versão de teste. Por enquanto, escreve para mim.");
+  }
+
+  // Entrevista da metodologia: texto livre é a resposta da pergunta atual.
+  if (sessao.modo === "entrevista") {
+    if (!ctx.message.text) return ctx.reply("Responde por texto ou tocando numa das opções, por favor.");
+    return registrarResposta(ctx, ctx.message.text);
   }
 
   // Comando na legenda de um arquivo não é executado pelo Telegram; avisamos em vez de tratar como conteúdo.

@@ -4,13 +4,13 @@
  */
 import { readFile } from "node:fs/promises";
 import { gerarRascunhoRevisado } from "../src/ia/gerador.js";
-import { extrairMetodologia } from "../src/ia/metodologia.js";
+import { metodologiaDeExemplo } from "./metodologia-exemplo.js";
 import { formatarCabecalho, formatarFicha, formatarParaAluno, formatarRevisaoAutomatica } from "../src/formatacao/texto.js";
 
-const planoReal = await readFile("exemplos/plano-real-adaptacao.md", "utf8");
 const anamnese = await readFile("tests/casos/aluna-j-anamnese.md", "utf8");
 
-const { metodologia } = await extrairMetodologia([{ tipo: "texto", conteudo: planoReal }]);
+const { metodologia, origem } = await metodologiaDeExemplo();
+console.log(`Metodologia: ${origem}`);
 
 console.time("geração + revisão");
 const r = await gerarRascunhoRevisado({ anamnese: [{ tipo: "texto", conteudo: anamnese }], metodologia }, async (etapa) =>

@@ -153,6 +153,58 @@ export function verificarFrequencia(plano: Plano): Problema[] {
     : [];
 }
 
+/**
+ * Carga com números absolutos (kg, placas, "40-47-57") num rascunho quase sempre foi copiada
+ * de um plano de exemplo, que era de outro aluno. Percentuais e escalas de esforço são aceitos.
+ */
+const CARGA_ABSOLUTA = /\d+\s*(kg|quilos?)\b|\b\d{2,3}\s*[-/]\s*\d{2,3}\b/i;
+const CARGA_RELATIVA = /%|rir|rpe|pse|1\s*rm/i;
+
+export function verificarCargaCopiada(plano: Plano): Problema[] {
+  const problemas: Problema[] = [];
+  for (const ficha of plano.fichas) {
+    for (const b of ficha.blocos) {
+      const cargas =
+        b.tipo === "simples"
+          ? [{ exercicio: b.exercicio, carga: b.carga }]
+          : b.tipo === "combinado"
+            ? b.itens.map((i) => ({ exercicio: i.exercicio, carga: i.carga }))
+            : [];
+      for (const { exercicio, carga } of cargas) {
+        if (carga && CARGA_ABSOLUTA.test(carga) && !CARGA_RELATIVA.test(carga) && !/\b0\s*kg\b/i.test(carga)) {
+          problemas.push({
+            origem: "regra",
+            gravidade: "corrigir",
+            descricao: `Treino ${ficha.letra}: "${exercicio}" tem carga em números ("${carga}"). Use indicação relativa; a carga real é definida com o aluno.`,
+          });
+        }
+      }
+    }
+  }
+  return problemas;
+}
+
+/**
+ * Nome de máquina para um exercício feito com outro equipamento ("Cadeira flexora com faixa elástica")
+ * confunde o aluno, que vai procurar a máquina. O nome deve dizer o que ele realmente faz.
+ */
+const NOME_DE_MAQUINA = /cadeira (extensora|flexora|abdutora|adutora)|mesa flexora|leg ?press|smith|polia|crossover|pulley|m[áa]quina/i;
+const OUTRO_EQUIPAMENTO = /faixa|el[áa]stic|halter|peso (do )?corpo|peso corporal|colchonete|garrafa|mochila/i;
+
+export function verificarNomeDeMaquina(plano: Plano): Problema[] {
+  return plano.fichas.flatMap((ficha) =>
+    exerciciosDeForca(ficha)
+      .filter((nome) => NOME_DE_MAQUINA.test(nome) && OUTRO_EQUIPAMENTO.test(nome))
+      .map(
+        (nome): Problema => ({
+          origem: "regra",
+          gravidade: "corrigir",
+          descricao: `Treino ${ficha.letra}: "${nome}" usa nome de máquina para um exercício com outro equipamento. Dê o nome do movimento (ex.: "Flexão de joelhos com faixa elástica").`,
+        }),
+      ),
+  );
+}
+
 export function verificarRegras(plano: Plano): Problema[] {
   return [
     ...verificarRepetidosNaFicha(plano),
@@ -160,6 +212,8 @@ export function verificarRegras(plano: Plano): Problema[] {
     ...verificarCargaZero(plano),
     ...verificarCardio(plano),
     ...verificarRepeticoes(plano),
+    ...verificarCargaCopiada(plano),
+    ...verificarNomeDeMaquina(plano),
     ...verificarFrequencia(plano),
   ];
 }

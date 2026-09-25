@@ -1,5 +1,6 @@
 import type { Anexo } from "../ia/entrada.js";
 import type { Plano } from "../dominio/plano.js";
+import type { Metodologia, RespostaEntrevista } from "../dominio/metodologia.js";
 
 /**
  * Estado da conversa com cada personal. Fica em memória: se o bot reiniciar,
@@ -8,6 +9,8 @@ import type { Plano } from "../dominio/plano.js";
 export type Sessao =
   | { modo: "livre" }
   | { modo: "metodologia"; anexos: Anexo[] }
+  /** Perguntas sobre o que ficou ambíguo nos planos. A pergunta atual é a de índice respostas.length. */
+  | { modo: "entrevista"; metodologia: Metodologia; respostas: RespostaEntrevista[] }
   | { modo: "anamnese"; aluno: string; anexos: Anexo[] }
   | { modo: "revisando"; planoId: string; pendente?: { plano: Plano; mudancas: string[] } };
 

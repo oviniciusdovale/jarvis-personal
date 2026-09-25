@@ -6,6 +6,8 @@ import {
   verificarRegras,
   verificarRepetidosNaFicha,
   verificarRepeticoes,
+  verificarCargaCopiada,
+  verificarNomeDeMaquina,
   verificarVariedade,
 } from "../src/validacao/regras.js";
 import { rascunhoAlunaJ } from "./casos/aluna-j-rascunho-v1.js";
@@ -102,6 +104,44 @@ describe("repetições", () => {
   it("aceita faixas, pirâmide, tempo e falha", () => {
     for (const r of ["10", "8-12", "12/10/8", "30s", "3 min", "até a falha"]) {
       expect(verificarRepeticoes(comRepeticoes(r))).toHaveLength(0);
+    }
+  });
+});
+
+describe("carga copiada", () => {
+  const comCarga = (carga: string): Plano => ({
+    ...planoBase,
+    fichas: [
+      { letra: "C", nome: "X", blocos: [{ tipo: "simples", exercicio: "Agachamento Smith", series: 3, repeticoes: "10", descansoSegundos: 60, carga }] },
+    ],
+  });
+
+  it("acusa números absolutos copiados", () => {
+    expect(verificarCargaCopiada(comCarga("progressiva (ex.: 40-47-57)"))).toHaveLength(1);
+    expect(verificarCargaCopiada(comCarga("20 kg"))).toHaveLength(1);
+  });
+
+  it("aceita cargas relativas", () => {
+    for (const c of ["moderada", "progressiva a cada série", "RIR 2", "70% 1RM", "PSE 7"]) {
+      expect(verificarCargaCopiada(comCarga(c))).toHaveLength(0);
+    }
+  });
+});
+
+describe("nome de máquina com outro equipamento", () => {
+  const comExercicio = (exercicio: string): Plano => ({
+    ...planoBase,
+    fichas: [{ letra: "D", nome: "X", blocos: [{ tipo: "simples", exercicio, series: 3, repeticoes: "12", descansoSegundos: 45 }] }],
+  });
+
+  it("acusa nome de máquina para exercício com faixa ou halter", () => {
+    expect(verificarNomeDeMaquina(comExercicio("Cadeira flexora com faixa elástica (deitado)"))).toHaveLength(1);
+    expect(verificarNomeDeMaquina(comExercicio("Leg press com halteres"))).toHaveLength(1);
+  });
+
+  it("aceita máquina de verdade e nomes de movimento", () => {
+    for (const e of ["Cadeira Flexora", "Flexão de joelhos com faixa elástica", "Remada alta com faixa elástica presa na porta"]) {
+      expect(verificarNomeDeMaquina(comExercicio(e))).toHaveLength(0);
     }
   });
 });

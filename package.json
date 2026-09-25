@@ -12,7 +12,11 @@
     "test": "vitest run",
     "testar:revisor": "tsx scripts/testar-revisor.ts",
     "gerar:caso": "tsx scripts/gerar-caso.ts",
-    "consistencia": "tsx scripts/consistencia.ts"
+    "consistencia": "tsx scripts/consistencia.ts",
+    "entrevista": "tsx scripts/entrevista.ts",
+    "checar": "tsx scripts/checar.ts",
+    "casos": "tsx scripts/casos.ts",
+    "ver": "tsx scripts/ver.ts"
   },
   "engines": {
     "node": ">=22"
