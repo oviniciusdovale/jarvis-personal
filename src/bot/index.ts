@@ -1,7 +1,7 @@
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { config } from "../config.js";
 import { Repositorio, versaoAtual, type RegistroPlano } from "../armazenamento/repositorio.js";
-import { gerarRascunho, revisarRascunho } from "../ia/gerador.js";
+import { gerarRascunhoRevisado, revisarRascunho } from "../ia/gerador.js";
 import { extrairMetodologia } from "../ia/metodologia.js";
 import {
   dividirMensagem,
@@ -9,6 +9,7 @@ import {
   formatarFicha,
   formatarMudancas,
   formatarParaAluno,
+  formatarRevisaoAutomatica,
 } from "../formatacao/texto.js";
 import { extrairAnexo } from "./anexos.js";
 import { definirSessao, obterSessao } from "./sessao.js";
@@ -141,20 +142,35 @@ bot.command("gerar", async (ctx) => {
   if (sessao.modo !== "anamnese") return ctx.reply("Comece com /novo Nome do aluno.");
   if (sessao.anexos.length === 0) return ctx.reply("Ainda não recebi a anamnese.");
 
-  await ctx.reply(`Montando o rascunho de ${sessao.aluno}. Leva uns 30 segundos...`);
+  await ctx.reply(`Montando o rascunho de ${sessao.aluno}. Leva de 30 segundos a 1 minuto e meio...`);
   emSegundoPlano(ctx, async () => {
     const metodologia = await repo.obterMetodologia(personalId(ctx));
-    const { plano, uso } = await gerarRascunho({ anamnese: sessao.anexos, metodologia });
-    const registro = await repo.criarPlano(personalId(ctx), sessao.aluno, plano);
+    const resultado = await gerarRascunhoRevisado({ anamnese: sessao.anexos, metodologia }, async (etapa) => {
+      const aviso =
+        etapa === "revisando"
+          ? "Rascunho montado. Conferindo se está coerente com a anamnese..."
+          : "Achei pontos para corrigir. Ajustando o rascunho...";
+      await ctx.api.sendMessage(chatId(ctx), aviso);
+    });
+    const registro = await repo.criarPlano(personalId(ctx), sessao.aluno, resultado.plano);
     await repo.registrarEvento({
       tipo: "rascunho_gerado",
       personalId: personalId(ctx),
       planoId: registro.id,
-      tokensEntrada: uso.entrada,
-      tokensSaida: uso.saida,
+      tokensEntrada: resultado.uso.entrada,
+      tokensSaida: resultado.uso.saida,
+      detalhe: JSON.stringify({
+        tentativas: resultado.tentativas,
+        mantevePrimeira: resultado.mantevePrimeira,
+        corrigidos: resultado.corrigidos.map((p) => p.descricao),
+        pendentes: resultado.pendentes.map((p) => p.descricao),
+        sugestoes: resultado.sugestoes.map((p) => p.descricao),
+      }),
     });
     // A anamnese sai da memória aqui: só o plano fica salvo.
     definirSessao(chatId(ctx), { modo: "revisando", planoId: registro.id });
+    const revisao = formatarRevisaoAutomatica(resultado);
+    if (revisao) await enviar(ctx, revisao);
     await mostrarRascunho(ctx, registro);
   });
 });
@@ -239,14 +255,22 @@ bot.on("message", async (ctx) => {
     return ctx.reply("Áudio ainda não está ligado nesta versão de teste. Por enquanto, escreve para mim.");
   }
 
+  // Comando na legenda de um arquivo não é executado pelo Telegram; avisamos em vez de tratar como conteúdo.
+  if (ctx.message.caption?.trim().startsWith("/")) {
+    return ctx.reply(
+      `Comandos na legenda do arquivo não funcionam. Mande "${ctx.message.caption.trim().split(/\s/)[0]}" numa mensagem separada e depois reenvie o arquivo.`,
+    );
+  }
+
   // Coletando planos ou anamnese: acumula tudo até /pronto ou /gerar.
   if (sessao.modo === "metodologia" || sessao.modo === "anamnese") {
     const anexo = await extrairAnexo(ctx, config.telegramToken);
     if (!anexo) return ctx.reply("Esse tipo de arquivo eu ainda não leio. Manda como foto, PDF ou texto.");
     sessao.anexos.push(anexo);
     if (ctx.message.caption) sessao.anexos.push({ tipo: "texto", conteudo: ctx.message.caption });
+    const destino = sessao.modo === "metodologia" ? "sua metodologia" : `a anamnese de ${sessao.aluno}`;
     const fim = sessao.modo === "metodologia" ? "/pronto" : "/gerar";
-    return ctx.reply(`Recebido (${sessao.anexos.length}). Manda mais ou use ${fim}.`);
+    return ctx.reply(`Recebido para ${destino} (${sessao.anexos.length}). Manda mais, use ${fim} ou /cancelar.`);
   }
 
   // Revisando: o texto é um pedido de alteração.

@@ -17,7 +17,9 @@ Nada gerado pela IA chega ao aluno sem aprovação do personal. Toda alteração
 | Rascunho | Plano gerado pela IA, ainda não aprovado | sugestão, prévia |
 | Plano | Conjunto de fichas com objetivo, nível, frequência e duração | programa |
 | Ficha | Um dia de treino ("Treino A") | sessão, dia |
-| Prescrição | Um exercício na ficha, com séries, repetições e descanso | item |
+| Bloco | Parte da ficha: simples (um exercício), combinado (sequência por voltas) ou cardio | item |
+| Aquecimento | Séries leves antes das séries de trabalho do mesmo exercício (ex.: 1x20) | ativação como exercício separado |
+| Orientações ao aluno | O que vai para o aluno; nunca contém recado ao personal | observações |
 | Versão | Foto do plano após cada alteração; permite desfazer | revisão |
 | Alerta | Algo que o personal precisa conferir antes de aprovar | aviso |
 

@@ -27,7 +27,7 @@ Pré-requisitos: Node 22+, um bot criado no [@BotFather](https://t.me/BotFather)
 
 ```bash
 npm install
-cp .env.example .env   # preencha TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY e ALLOWED_TELEGRAM_IDS
+cp .env.example .env.local   # preencha TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY e ALLOWED_TELEGRAM_IDS
 npm run dev
 ```
 
@@ -40,6 +40,20 @@ npm run gerar:exemplo
 ```
 
 Usa `exemplos/plano-antigo-exemplo.md` e `exemplos/anamnese-exemplo.md`, mostra o rascunho, uma revisão, o tempo de cada etapa e os tokens gastos.
+
+### Revisão automática
+
+Todo rascunho passa por uma conferência antes de chegar ao personal:
+
+- **Regras por código:** ativação de exercício que não tem séries de trabalho, fichas que repetem os mesmos exercícios, cargas "0 kg".
+- **Revisor de IA:** confere se justificativa e alertas batem com as fichas, se cada ponto da anamnese foi tratado (inclusive frequência variável) e se falta alerta de expectativa.
+
+Se houver algo a corrigir, o gerador tenta de novo uma vez. O que continuar errado aparece para o personal como "ainda não consegui resolver".
+
+```bash
+npm run testar:revisor   # o revisor encontra os problemas conhecidos do caso Aluna J?
+npm run gerar:caso       # fluxo completo (gera, revisa, corrige) para o caso Aluna J
+```
 
 ### Verificação
 
@@ -55,6 +69,7 @@ src/
   dominio/         schemas do plano e da metodologia (Zod)
   ia/              cliente Anthropic, prompts, gerador, revisão e extração de metodologia
   formatacao/      como o plano aparece no Telegram e para o aluno
+  validacao/       regras por código que conferem o rascunho
   armazenamento/   repositório do piloto (JSON em disco, com versões)
   bot/             bot do Telegram (grammY)
 scripts/           gerar-exemplo.ts

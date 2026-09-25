@@ -1,4 +1,7 @@
-import "dotenv/config";
+import { config as carregarEnv } from "dotenv";
+
+// Lê .env.local primeiro (seus segredos locais) e depois .env. O que vier antes tem prioridade.
+carregarEnv({ path: [".env.local", ".env"], quiet: true });
 
 function obrigatoria(nome: string): string {
   const valor = process.env[nome];

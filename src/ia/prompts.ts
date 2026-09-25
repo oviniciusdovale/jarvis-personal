@@ -14,6 +14,18 @@ Regras:
   pressão descontrolada, cirurgia recente), registre um alerta "atencao" no topo da lista.
 - Use nomes de exercícios comuns no Brasil, em português.
 - Volume coerente com o nível: iniciante com menos séries e exercícios; avançado com mais.
+- Uma restrição adapta ou reduz o estímulo, não o elimina, a menos que a anamnese peça. Ex.: dor no joelho
+  ao agachar fundo pede amplitude limitada ou máquina guiada, não zero trabalho de quadríceps.
+  Registre a adaptação no alerta.
+- Justificativa, alertas e orientações só podem afirmar o que está de fato nas fichas.
+- Se alguma condição de saúde ou dado da anamnese torna o objetivo pouco realista ou dependente de
+  outros fatores, registre um alerta para o personal alinhar a expectativa com o aluno.
+- Não coloque nome de pessoa no título do plano.
+- Não escreva carga "0 kg": deixe a carga em branco ou use uma indicação útil ("leve", "RIR 2").
+- Se a frequência for variável (ex.: "2 a 3 vezes"), preencha frequencia com mínima e máxima, monte
+  fichas para a máxima e diga nas orientações ao aluno quais fichas priorizar nas semanas com menos treinos.
+- Nível: se a anamnese indica algo entre dois níveis, use o nível intermediário correspondente
+  (ex.: "iniciante_intermediario").
 - Escreva em português do Brasil, de forma direta.
 `.trim();
 
@@ -23,7 +35,7 @@ export function sistemaGerador(metodologia: Metodologia | undefined): string {
 Metodologia deste personal (siga o estilo dele, não um padrão genérico):
 - Resumo: ${metodologia.resumo}
 - Divisões preferidas: ${metodologia.divisoesPreferidas.join("; ")}
-- Exercícios que ele usa (prefira estes nomes): ${metodologia.exerciciosFrequentes.join(", ")}
+- Exercícios que ele usa (base preferida, não lista fechada): ${metodologia.exerciciosFrequentes.join(", ")}
 - Padrões de prescrição: ${metodologia.padroesPrescricao}
 - Estilo das orientações: ${metodologia.estiloOrientacoes}
 `.trim()
@@ -32,6 +44,25 @@ Metodologia deste personal (siga o estilo dele, não um padrão genérico):
   return `${REGRAS_GERAIS}
 
 Sua tarefa: montar o rascunho de um plano de treino a partir da anamnese do aluno.
+
+Como montar as fichas (use o tipo de bloco certo):
+- "simples": um exercício com séries. Séries leves antes das de trabalho (ex.: 1x20 de ativação) vão no
+  campo "aquecimento" do próprio exercício. Nunca repita o exercício em outro bloco para isso.
+- "combinado": exercícios feitos em sequência por voltas (bi-set, tri-set, circuito, "exercícios
+  combinados, alterne"). Cardio curto dentro do circuito (ex.: 3 min de bike) é um item do combinado.
+  Informe voltas, descanso entre os itens e descanso ao fim da volta.
+- "cardio": contínuo (com duração) ou intervalado (com tiros, tempo de trabalho e pausa; ex.: Tabata
+  = 8 tiros de 20s com 10s de pausa).
+
+Quem lê cada parte:
+- orientacoesAluno e observações dos exercícios: vão para o ALUNO. Escreva para ele, sem raciocínio
+  clínico ("sem restrição relatada", "por causa do histórico de...") e sem recados ao personal.
+- alertas e justificativa: só para o PERSONAL. É aqui que vai o que ele deve conferir ou conversar com o aluno.
+
+Variedade:
+- Fichas com o mesmo foco (ex.: dois dias de inferior) devem variar o estímulo: pelo menos metade dos
+  exercícios diferentes entre elas, não só a ordem.
+- Use os exercícios do personal como base e complete com exercícios comuns que combinem com o estilo dele.
 
 ${estilo}`;
 }
@@ -43,6 +74,8 @@ Sua tarefa: aplicar ao plano atual a alteração que o personal pediu, e SOMENTE
 - Não mude nada que ele não pediu.
 - Se ele não disser séries/repetições para um exercício novo, mantenha as do exercício substituído
   ou use o padrão da metodologia dele.
+- Se o exercício citado aparece em mais de uma ficha e o personal não especificou qual, aplique em todas e
+  liste cada mudança separadamente para ele conferir.
 - Se o pedido for ambíguo (ex.: "troca o supino" e há dois supinos), marque entendimento "ambiguo",
   devolva o plano sem alterações e escreva uma pergunta curta com as opções.
 - Liste cada mudança em uma linha, no formato "Treino A: antes → depois".
@@ -54,7 +87,10 @@ Você vai analisar planos de treino que um personal trainer já usou com alunos.
 Extraia o ESTILO dele, não o conteúdo de um aluno específico: como divide os treinos,
 quais exercícios prefere (com os nomes exatamente como ele escreve), faixas de séries,
 repetições e descanso, métodos que usa, e como escreve orientações.
-Ignore nomes e dados pessoais de alunos. Escreva em português do Brasil.
+Ignore nomes e dados pessoais de alunos.
+Ignore valores que parecem padrão do aplicativo de onde o plano foi exportado (ex.: "Carga: 0kg" em todos
+os exercícios): isso não é estilo do personal.
+Escreva em português do Brasil.
 `.trim();
 
 export function planoComoTexto(plano: Plano): string {

@@ -1,38 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { Plano } from "../src/dominio/plano.js";
 import { PlanoSchema } from "../src/dominio/plano.js";
 import {
   dividirMensagem,
   formatarCabecalho,
   formatarDescanso,
   formatarFicha,
+  formatarFrequencia,
   formatarParaAluno,
 } from "../src/formatacao/texto.js";
 import { schemaDaFerramenta } from "../src/ia/cliente.js";
-
-const plano: Plano = {
-  titulo: "Hipertrofia 4x – glúteo",
-  objetivo: "Hipertrofia",
-  nivel: "intermediario",
-  frequenciaSemanal: 4,
-  duracaoSemanas: 6,
-  fichas: [
-    {
-      letra: "A",
-      nome: "Inferior com ênfase em glúteo",
-      prescricoes: [
-        { exercicio: "Elevação pélvica na máquina", series: 4, repeticoes: "8-10", descansoSegundos: 90, observacao: "Segurar 1s no topo" },
-        { exercicio: "Mesa flexora", series: 3, repeticoes: "12", descansoSegundos: 60 },
-      ],
-    },
-  ],
-  orientacoes: ["Aquecer 5 min antes"],
-  alertas: [
-    { tipo: "informacao_faltando", mensagem: "Confirmar equipamentos" },
-    { tipo: "restricao", mensagem: "Joelho direito: evitei agachamento profundo" },
-  ],
-  justificativa: "Divisão superior/inferior para 4x.",
-};
+import { planoBase } from "./fixtures.js";
 
 describe("formatação", () => {
   it("formata descanso em segundos e minutos", () => {
@@ -42,23 +19,40 @@ describe("formatação", () => {
     expect(formatarDescanso(120)).toBe("2min");
   });
 
-  it("formata a ficha com observação", () => {
-    const texto = formatarFicha(plano.fichas[0]!);
-    expect(texto).toContain("Treino A: Inferior com ênfase em glúteo");
-    expect(texto).toContain("1. Elevação pélvica na máquina: 4x8-10 · 1min30s");
-    expect(texto).toContain("↳ Segurar 1s no topo");
+  it("formata frequência fixa e variável", () => {
+    expect(formatarFrequencia({ minima: 3, maxima: 3 })).toBe("3x/semana");
+    expect(formatarFrequencia({ minima: 2, maxima: 3 })).toBe("2 a 3x/semana");
+  });
+
+  it("mostra aquecimento dentro do exercício, não como linha separada", () => {
+    const texto = formatarFicha(planoBase.fichas[0]!);
+    expect(texto).toContain("1. Agachamento Smith: 3x10 · 1min · moderada");
+    expect(texto).toContain("aquecimento: 1x20 (leve)");
+    expect(texto.match(/Agachamento Smith/g)).toHaveLength(1);
+  });
+
+  it("formata cardio intervalado", () => {
+    expect(formatarFicha(planoBase.fichas[0]!)).toContain('3. 🚴 Bike Spinning: 8x 20" / 10" de pausa · forte');
+  });
+
+  it("formata combinado com voltas, descanso e itens", () => {
+    const texto = formatarFicha(planoBase.fichas[1]!);
+    expect(texto).toContain("1. 🔁 Circuito com bike · 3 voltas · sem descanso entre os exercícios, 1min ao fim da volta");
+    expect(texto).toContain("   c) Bike Spinning: 3 min");
+    expect(texto).toContain("2. 🚴 Esteira: 10 min · leve");
   });
 
   it("mostra restrições antes de informações faltando", () => {
-    const texto = formatarCabecalho(plano, "Ana");
+    const texto = formatarCabecalho(planoBase, "Ana");
+    expect(texto).toContain("Iniciante/Intermediário · 2 a 3x/semana");
     expect(texto.indexOf("Joelho")).toBeLessThan(texto.indexOf("equipamentos"));
   });
 
   it("versão do aluno não mostra alertas nem justificativa", () => {
-    const texto = formatarParaAluno(plano);
+    const texto = formatarParaAluno(planoBase);
     expect(texto).not.toContain("Joelho");
-    expect(texto).not.toContain("Divisão superior");
-    expect(texto).toContain("Aquecer 5 min antes");
+    expect(texto).not.toContain("circuito metabólico");
+    expect(texto).toContain("Aqueça 5 minutos");
   });
 
   it("divide mensagens longas sem cortar linhas", () => {
@@ -71,12 +65,15 @@ describe("formatação", () => {
 });
 
 describe("schema do plano", () => {
-  it("aceita um plano válido", () => {
-    expect(PlanoSchema.safeParse(plano).success).toBe(true);
+  it("aceita um plano válido com os três tipos de bloco", () => {
+    expect(PlanoSchema.safeParse(planoBase).success).toBe(true);
   });
 
-  it("recusa ficha sem exercícios", () => {
-    const invalido = { ...plano, fichas: [{ letra: "A", nome: "Vazia", prescricoes: [] }] };
+  it("recusa combinado com um item só", () => {
+    const invalido = {
+      ...planoBase,
+      fichas: [{ letra: "A", nome: "X", blocos: [{ tipo: "combinado", voltas: 3, descansoEntreItensSegundos: 0, descansoAoFimDaVoltaSegundos: 60, itens: [{ exercicio: "Supino", repeticoes: "10" }] }] }],
+    };
     expect(PlanoSchema.safeParse(invalido).success).toBe(false);
   });
 

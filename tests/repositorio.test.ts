@@ -4,18 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Repositorio, versaoAtual } from "../src/armazenamento/repositorio.js";
 import type { Plano } from "../src/dominio/plano.js";
+import { planoBase } from "./fixtures.js";
 
-const plano: Plano = {
-  titulo: "Teste",
-  objetivo: "Hipertrofia",
-  nivel: "iniciante",
-  frequenciaSemanal: 3,
-  duracaoSemanas: 4,
-  fichas: [{ letra: "A", nome: "Corpo todo", prescricoes: [{ exercicio: "Leg press", series: 3, repeticoes: "12", descansoSegundos: 60 }] }],
-  orientacoes: [],
-  alertas: [],
-  justificativa: "Teste.",
-};
+const plano: Plano = planoBase;
 
 let dir: string;
 let repo: Repositorio;
@@ -35,7 +26,7 @@ describe("repositório", () => {
     expect(versaoAtual((await repo.obterPlano(criado.id))!).plano.titulo).toBe("Revisado");
 
     const desfeito = await repo.desfazer(criado.id);
-    expect(versaoAtual(desfeito!).plano.titulo).toBe("Teste");
+    expect(versaoAtual(desfeito!).plano.titulo).toBe(planoBase.titulo);
     expect(await repo.desfazer(criado.id)).toBeUndefined();
   });
 

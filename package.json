@@ -9,7 +9,10 @@
     "start": "tsx src/bot/index.ts",
     "gerar:exemplo": "tsx scripts/gerar-exemplo.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "testar:revisor": "tsx scripts/testar-revisor.ts",
+    "gerar:caso": "tsx scripts/gerar-caso.ts",
+    "consistencia": "tsx scripts/consistencia.ts"
   },
   "engines": {
     "node": ">=22"
